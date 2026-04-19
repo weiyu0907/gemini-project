@@ -26,7 +26,7 @@ if sys.stdin.encoding != 'utf-8':
 # --- 🌐 核心配置 ---
 SELF_PATH = os.path.abspath(__file__)
 console = Console()
-OLLAMA_HOST = 'http://100.75.147.53:11434' 
+OLLAMA_HOST = 'http://100.69.30.107:11434' 
 MODEL_NAME = 'gemma4'
 MD_TICKS = chr(96) * 3
 
@@ -35,7 +35,6 @@ try:
 except Exception as e:
     console.print(f"[bold red]❌ 無法連線至伺服器: {e}[/bold red]")
 
-# --- ✨ Tab 檔案補全 ---
 def path_completer(text, state):
     matches = glob.glob(os.path.expanduser(text) + '*')
     return (matches + [None])[state]
@@ -44,7 +43,6 @@ readline.set_completer_delims(' \t\n;')
 readline.parse_and_bind("tab: complete")
 readline.set_completer(path_completer)
 
-# --- 🧠 處理邏輯 ---
 def extract_blocks(text, lang="python"):
     pattern = MD_TICKS + rf"(?:{lang})?\n(.*?)\n" + MD_TICKS
     return re.findall(pattern, text, re.DOTALL)
@@ -67,24 +65,22 @@ def get_project_info():
         except: pass
     return "[通用]", "[dim]🌍 5080 本地模式[/dim]", ""
 
-# --- 🚀 主程式迴圈 ---
 def main():
     prompt_prefix, mode_text, system_instruction = get_project_info()
     history = []
     if system_instruction:
         history.append({'role': 'system', 'content': system_instruction})
 
-    # --- 🎨 重新設計的綠色框框 ---
     console.clear()
     help_menu = (
-        f"[bold green]🔋 5080 智慧 Agent 完全體[/bold green] [dim]v2.6[/dim]\n"
+        f"[bold green]🔋 5080 智慧 Agent 完全體[/bold green] [dim]v2.9[/dim]\n"
         f"{mode_text} | 模型：[white]{MODEL_NAME}[/white]\n"
         f"──────────────────────────────────────────\n"
-        f"[cyan]🚀 Git 同步 [/cyan] ⮕ [white]@push <訊息>[/white] (自動 Commit/Push)\n"
-        f"[magenta]🧬 自我進化 [/magenta] ⮕ [white]@apply[/white] (將 AI 代碼寫入檔案)\n"
-        f"[red]⚡ 指令執行 [/red] ⮕ [white]@run <cmd>[/white] (支援自動偵測執行)\n"
-        f"[yellow]📖 檔案讀取 [/yellow] ⮕ [white]@read <路徑>[/white] (輸入 [italic]self[/italic] 讀取源碼)\n"
-        f"[blue]👁️ 視覺分析 [/blue] ⮕ [white]@image <路徑> <問題>[/white]\n"
+        f"[cyan]📝 多行貼上 [/cyan] ⮕ [white]/multi[/white] (自動過濾終端機邊界符號)\n"
+        f"[green]💾 安全存檔 [/green] ⮕ [white]@save <訊息>[/white] (僅本地 Commit)\n"
+        f"[blue]🚀 雲端同步 [/blue] ⮕ [white]@push \[訊息][/white] (發送至 GitHub)\n"
+        f"[magenta]🧬 自我進化 [/magenta] ⮕ [white]@apply[/white] (寫入 AI 建議代碼)\n"
+        f"[red]⚡ 指令執行 [/red] ⮕ [white]@run <cmd>[/white] | [yellow]📖 讀取 [/yellow] ⮕ [white]@read <路徑>[/white]\n"
         f"──────────────────────────────────────────\n"
         f"[dim]輸入 'exit' 離開，'clear' 清除畫面[/dim]"
     )
@@ -96,38 +92,60 @@ def main():
         try:
             prompt_prefix, _, _ = get_project_info()
             user_input = input(f"\n❯ {prompt_prefix} 您：")
+            
+            # --- 🚀 多行輸入模式 (加入邊界符號過濾) ---
+            if user_input.strip() == "/multi":
+                console.print("[dim]📝 已進入多行模式！請直接貼上內容。\n(貼完後，請在新的一行輸入 [white]/end[/white] 送出，或 [white]/cancel[/white] 取消)[/dim]")
+                lines = []
+                while True:
+                    line = input()
+                    if line.strip() == "/end": break
+                    if line.strip() == "/cancel":
+                        lines = None
+                        break
+                    
+                    # 自動移除 iPad SSH 常見的右側邊界符號 '|' 以及多餘的空白
+                    cleaned_line = line.rstrip()
+                    if cleaned_line.endswith('|'):
+                        cleaned_line = cleaned_line[:-1].rstrip()
+                    lines.append(cleaned_line)
+                
+                if lines is None: 
+                    console.print("[yellow]已取消多行輸入。[/yellow]")
+                    continue
+                
+                user_input = "\n".join(lines)
+                console.print(f"[dim]✅ 已成功接收 {len(lines)} 行內容。[/dim]")
+
             if user_input.lower() in ['exit', 'quit']: break
             if not user_input.strip(): continue
 
-            # --- A. 智慧 GitHub 同步 (@push) ---
-            if user_input.startswith("@push"):
-                # 自動剝除使用者可能誤加的單雙引號，防止 Bash 語法錯誤
-                msg = user_input.replace("@push", "").strip().strip("\"'")
+            # --- 指令解析 (改為嚴格比對開頭，避免誤判貼上的內容) ---
+            if user_input.startswith("@save"):
+                msg = user_input.replace("@save", "", 1).strip().strip("\"'")
                 if not msg:
-                    console.print("[yellow]⚠️ 請提供描述！[/yellow]")
-                    continue
-                
-                git_cmds = [
-                    "git add .",
-                    f'git commit -m "{msg}"',
-                    "git push origin main"
-                ]
+                    console.print("[yellow]⚠️ 請提供存檔描述！[/yellow]"); continue
+                git_cmds = ["git add .", f'git commit -m "{msg}"']
                 if run_git_cmds(git_cmds):
-                    console.print("[bold green]✅ 成功推送到 GitHub！[/bold green]")
+                    console.print("[bold green]💾 已完成本地存檔。[/bold green]")
                 continue
 
-            # --- B. 自我進化 (@apply) ---
+            elif user_input.startswith("@push"):
+                msg = user_input.replace("@push", "", 1).strip().strip("\"'")
+                git_cmds = ["git add .", f'git commit -m "{msg}"', "git push origin main"] if msg else ["git push origin main"]
+                if run_git_cmds(git_cmds):
+                    console.print("[bold blue]🚀 成功同步至 GitHub 雲端！[/bold blue]")
+                continue
+
             elif user_input.startswith("@apply"):
-                target = user_input.replace("@apply", "").strip()
+                target = user_input.replace("@apply", "", 1).strip()
                 if not target:
                     if "我的主程式代碼如下" in last_ai_response: target = SELF_PATH
                     else:
                         match_yml = re.search(r"(\.github/workflows/\w+\.yml)", last_ai_response)
                         target = match_yml.group(1) if match_yml else ""
-
                 if not target:
                     console.print("[yellow]⚠️ 請指定路徑！[/yellow]"); continue
-
                 lang = "yaml" if target.endswith(".yml") else "python"
                 blocks = extract_blocks(last_ai_response, lang)
                 if blocks:
@@ -138,35 +156,35 @@ def main():
                     console.print("[yellow]⚠️ 找不到代碼區塊。[/yellow]")
                 continue
 
-            # --- C. 智慧執行 (@run) ---
             elif user_input.startswith("@run"):
-                cmd_arg = user_input.replace("@run", "").strip()
-                if not cmd_arg or any(x in cmd_arg for x in ["上面", "自動", "幫我"]):
+                cmd_arg = user_input.replace("@run", "", 1).strip()
+                if not cmd_arg or any(x in cmd_arg for x in ["上面", "自動"]):
                     blocks = extract_blocks(last_ai_response, "bash") or extract_blocks(last_ai_response, "sh")
-                    if not blocks:
-                        console.print("[yellow]⚠️ 找不到指令。[/yellow]"); continue
                     for c in blocks:
                         if Confirm.ask(f"執行 [cyan]{c}[/cyan]？", default=True): os.system(c)
                 else:
                     if Confirm.ask(f"執行 [red]{cmd_arg}[/red]？", default=False): os.system(cmd_arg)
                 continue
 
-            # --- D. 檔案讀取 ---
-            payload = user_input
-            if "@read self" in user_input.lower():
-                with open(SELF_PATH, "r", encoding="utf-8") as f:
-                    payload = user_input.replace("@read self", "") + f"\n\n我的主程式代碼如下：\n{MD_TICKS}python\n{f.read()}\n{MD_TICKS}"
-                console.print(f"[dim]🧬 已讀取源碼...[/dim]")
-            elif "@read" in user_input:
-                parts = user_input.split("@read")
-                file_path = os.path.expanduser(parts[1].strip())
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        payload = f"{parts[0].strip()}\n\n內容：\n{MD_TICKS}\n{f.read()}\n{MD_TICKS}"
-                        console.print(f"[dim]📁 已讀取：{file_path}[/dim]")
-                except Exception as e: console.print(f"[red]失敗: {e}[/red]"); continue
+            elif user_input.startswith("@read"):
+                payload = user_input
+                if user_input.strip() == "@read self" or user_input.startswith("@read self "):
+                    with open(SELF_PATH, "r", encoding="utf-8") as f:
+                        payload = user_input.replace("@read self", "", 1) + f"\n\n我的主程式代碼如下：\n{MD_TICKS}python\n{f.read()}\n{MD_TICKS}"
+                    console.print(f"[dim]🧬 已讀取源碼...[/dim]")
+                else:
+                    file_path = os.path.expanduser(user_input.split("@read", 1)[1].strip())
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            payload = f"{user_input.split('@read', 1)[0].strip()}\n\n內容：\n{MD_TICKS}\n{f.read()}\n{MD_TICKS}"
+                            console.print(f"[dim]📁 已讀取：{file_path}[/dim]")
+                    except Exception as e: 
+                        console.print(f"[red]失敗: {e}[/red]")
+                        continue
+            else:
+                payload = user_input
 
-            # 送出至 5080 伺服器
+            # --- 傳送至 5080 模型 ---
             history.append({'role': 'user', 'content': payload})
             with console.status(f"[bold green]5080 運算中...[/bold green]"):
                 resp = client.chat(model=MODEL_NAME, messages=history)
