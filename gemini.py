@@ -74,13 +74,13 @@ def main():
     if system_instruction:
         history.append({'role': 'system', 'content': system_instruction})
 
-    # --- 🎨 重新設計的綠色框框 (指令全顯示) ---
+    # --- 🎨 重新設計的綠色框框 ---
     console.clear()
     help_menu = (
-        f"[bold green]🔋 5080 智慧 Agent 完全體[/bold green] [dim]v2.5[/dim]\n"
+        f"[bold green]🔋 5080 智慧 Agent 完全體[/bold green] [dim]v2.6[/dim]\n"
         f"{mode_text} | 模型：[white]{MODEL_NAME}[/white]\n"
         f"──────────────────────────────────────────\n"
-        f"[cyan]🚀 Git 同步 [/cyan] ⮕ [white]@push \"訊息\"[/white] (自動 Commit/Push)\n"
+        f"[cyan]🚀 Git 同步 [/cyan] ⮕ [white]@push <訊息>[/white] (自動 Commit/Push)\n"
         f"[magenta]🧬 自我進化 [/magenta] ⮕ [white]@apply[/white] (將 AI 代碼寫入檔案)\n"
         f"[red]⚡ 指令執行 [/red] ⮕ [white]@run <cmd>[/white] (支援自動偵測執行)\n"
         f"[yellow]📖 檔案讀取 [/yellow] ⮕ [white]@read <路徑>[/white] (輸入 [italic]self[/italic] 讀取源碼)\n"
@@ -101,7 +101,8 @@ def main():
 
             # --- A. 智慧 GitHub 同步 (@push) ---
             if user_input.startswith("@push"):
-                msg = user_input.replace("@push", "").strip()
+                # 自動剝除使用者可能誤加的單雙引號，防止 Bash 語法錯誤
+                msg = user_input.replace("@push", "").strip().strip("\"'")
                 if not msg:
                     console.print("[yellow]⚠️ 請提供描述！[/yellow]")
                     continue
